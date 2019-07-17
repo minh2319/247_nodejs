@@ -5,9 +5,10 @@ var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
 var arrListOrder = [];
-
+console.log('oke')
 //Tạo socket
 io.on('connection', function (socket) {
+    console.log('connection')
     var arrListOrderId = [];
     for(var i in arrListOrder){
         arrListOrderId.push( arrListOrder[i][0])
