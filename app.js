@@ -12,8 +12,6 @@ var arrListOrder = [];
 
 //Tạo socket
 const nsp = io.of('/socket.io/');
-const request = require('request');
-const https = require('https')
 nsp.on('connection', function (socket) {
     console.log('connection')
     if (socket.handshake.query.userID) {
