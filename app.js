@@ -3,19 +3,52 @@ var express = require("express");
 var app = express();
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-
+var redis = require('redis');
+/*
+Default redis:(Ip: '127.0.0.1',Port: 6379);
+ */
+var client = redis.createClient();
 var arrListOrder = [];
+/*
+Encode để nhận được dữ liệu API đẩy qua
+ */
+app.use(express.urlencoded({ extended: true }))
+
+
 //Tạo socket
 const nsp = io.of('/socket.io/');
-
 nsp.on('connection', function (socket) {
-    console.log('connection')
+    if (socket.handshake.query.userID) {
+        var userId = socket.handshake.query.userID;
+        UpdateUserActivate(userId);
+    }
     var arrListOrderId = [];
     for (var i in arrListOrder) {
-        arrListOrderId.push(arrListOrder[i][0])
+        arrListOrderId.push(arrListOrder[ i ][ 0 ])
     }
     nsp.emit('listOrderId', arrListOrderId);
+    /*
+    Nhận dữ liệu order_item và thông báo lại cho cs ID
+     */
+    app.post('/getOrderCs', function (req, res) {
+        // php array will be here in this variable
+        var dataCs = {};
+        dataCs.order_id = req.body.order_id
+        dataCs.order_code = req.body.order_code
+        dataCs.user_id = req.body.user_id
+        dataCs.created_date = req.body.created_date
+        dataCs.note = req.body.note
+
+        nsp.emit('notifyCsOrder', dataCs);
+        res.send('Success');
+    });
     socket.on('disconnect', function () {
+        /*
+        Nhận dữ liệu gửi qua từ giaonhan
+         */
+        if (userId) {
+            UpdateUserDisconnect(userId);
+        }
         if (arrListOrder[ socket.id ]) {
             //Mở khóa nút sửa đơn hàng khi Cs thoát khỏi đơn hàng đó
             // nsp.emit('enableOrder', arrListOrder[ socket.id ]);
@@ -29,19 +62,19 @@ nsp.on('connection', function (socket) {
                 }
             }
             //Nếu không còn user nào trong đơn nữa thì gửi orderid đơn qua
-            if(nameCs.length==0)
-            {
-                nameCs=orderId;
+            if (nameCs.length == 0) {
+                nameCs = orderId;
             }
-            nsp.emit('enableOrder', nameCs,orderId);
+            console.log(nameCs);
+            nsp.emit('enableOrder', nameCs, orderId);
 
         }
     });
     // io.sockets.emit('guidata', arrName);
     //Disable đơn hàng của CS đang truy cập
     socket.on('addOrder', function (data) {
-        arrListOrder[socket.id] = [];
-        arrListOrder[socket.id].push(data);
+        arrListOrder[ socket.id ] = [];
+        arrListOrder[ socket.id ].push(data);
         let flag = 0;
         for (var i in arrListOrder) {
             //TH 1 người mở nhiều trang thì chỉ show tên 1 lần
@@ -50,16 +83,51 @@ nsp.on('connection', function (socket) {
             }
             //TH người khác mở chung 1 đơn hàng thì hiện thêm tên người đó vào đơn hàng
             if (arrListOrder[ i ][ 0 ].csName != data.csName && arrListOrder[ i ][ 0 ].orderId == data.orderId) {
-                data.key=1;
+                data.key = 1;
             }
         }
 
+        console.log(flag)
         if (flag < 2) {
             nsp.emit('disableOrder', data);
         }
     });
 
 });
+
+function UpdateUserActivate(userId) {
+    let csTab = 0;
+    let csTime = new Date().getTime();
+    csTime = Math.round(csTime / 1000)
+    client.get('csTab:' + userId, function (error, result) {
+        if (result) {
+            csTab = parseInt(result);
+        }
+        csTab += 1;
+        /*
+        Lấy giá trị Tab hiện tại và time để cập nhật lại vào user
+         */
+        client.set([ 'csTab:' + userId, csTab ]);
+        client.set([ 'csTime:' + userId, csTime ]);
+    });
+}
+
+function UpdateUserDisconnect(userId) {
+    /*
+    Lấy =1, để 1 trừ 1 thì cũng =0
+     */
+    let csTab = 1;
+    client.get('csTab:' + userId, function (error, result) {
+        if (result) {
+            csTab = parseInt(result);
+        }
+        csTab -= 1;
+        if (csTab < 0) {
+            csTab = 0;
+        }
+        client.set([ 'csTab:' + userId, csTab ]);
+    });
+}
 
 //Khởi tạo 1 server listen tại 1 port
 server.listen(3000);
