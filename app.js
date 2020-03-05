@@ -4,10 +4,12 @@ var app = express();
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 var redis = require('redis');
+var prefix='gn247_:notificationCS:';
 /*
 Default redis:(Ip: '127.0.0.1',Port: 6379);
  */
 var client = redis.createClient();
+client.select(8);
 var arrListOrder = [];
 /*
 Encode để nhận được dữ liệu API đẩy qua
@@ -99,7 +101,7 @@ function UpdateUserActivate(userId) {
     let csTab = 0;
     let csTime = new Date().getTime();
     csTime = Math.round(csTime / 1000)
-    client.get('csTab:' + userId, function (error, result) {
+    client.get(prefix+'csTab:' + userId, function (error, result) {
         if (result) {
             csTab = parseInt(result);
         }
@@ -107,8 +109,8 @@ function UpdateUserActivate(userId) {
         /*
         Lấy giá trị Tab hiện tại và time để cập nhật lại vào user
          */
-        client.set([ 'csTab:' + userId, csTab ]);
-        client.set([ 'csTime:' + userId, csTime ]);
+        client.set([ prefix+'csTab:' + userId, csTab ]);
+        client.set([ prefix+'csTime:' + userId, csTime ]);
     });
 }
 
@@ -117,7 +119,7 @@ function UpdateUserDisconnect(userId) {
     Lấy =1, để 1 trừ 1 thì cũng =0
      */
     let csTab = 1;
-    client.get('csTab:' + userId, function (error, result) {
+    client.get(prefix+'csTab:' + userId, function (error, result) {
         if (result) {
             csTab = parseInt(result);
         }
@@ -125,7 +127,7 @@ function UpdateUserDisconnect(userId) {
         if (csTab < 0) {
             csTab = 0;
         }
-        client.set([ 'csTab:' + userId, csTab ]);
+        client.set([prefix+ 'csTab:' + userId, csTab ]);
     });
 }
 
